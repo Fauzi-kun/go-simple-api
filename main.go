@@ -19,6 +19,7 @@ func main() {
 	})
 	r.POST("/notes",post)
 	r.PUT("/notes/:id",put)
+	r.DELETE("/notes/:id",delete)
 	r.Run(":8080")
 }
 func post(c *gin.Context){
@@ -48,6 +49,22 @@ func put(c *gin.Context){
 			notes[i].Title = updatedNote.Title
 			notes[i].Content = updatedNote.Content
 			c.JSON(http.StatusOK,notes[i])
+			return
+		}
+	}
+	c.JSON(http.StatusNotFound,gin.H{"error": "Note nggak ditemukan!"})
+}
+func delete(c *gin.Context){
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
+	if err != nil{
+		c.JSON(http.StatusBadRequest,gin.H{"error": "ID nggak valid!"})
+		return
+	}
+	for i, note := range notes{
+		if note.ID == id{
+			notes = append(notes[:i], notes[i+1:]...)
+			c.JSON(http.StatusOK,gin.H{"message": "Note berhasil dihapus!"})
 			return
 		}
 	}
