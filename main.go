@@ -4,14 +4,13 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-var notes = []Note{
-	{ID: 1, Title: "Belajar Go", Content: "Pelajari Gin dan GORM"},
-}
 var db *gorm.DB
+var validate = validator.New()
 
 func main() {
 	initDB()
@@ -21,6 +20,8 @@ func main() {
 	r.POST("/notes",post)
 	r.PUT("/notes/:id",put)
 	r.DELETE("/notes/:id",delete)
+	r.POST("/login", login)
+	r.GET("/profile",AuthMiddleware(),profile)
 	r.Run(":8080")
 }
 func get(c *gin.Context){
@@ -30,10 +31,17 @@ func get(c *gin.Context){
 }
 func post(c *gin.Context){
 	var newNote Note
-	if err := c.ShouldBindJSON(&newNote); err != nil{
+	if err := c.BindJSON(&newNote); err != nil{
+		c.JSON(http.StatusBadRequest,gin.H{"error": "Format JSON salah!"})
+		return
+	}
+
+	//Validate
+	if err := validate.Struct(newNote); err != nil{
 		c.JSON(http.StatusBadRequest,gin.H{"error": err.Error()})
 		return
-	} 
+	}
+
 	db.Create(&newNote)
 	c.JSON(http.StatusCreated,newNote)
 }
@@ -47,10 +55,16 @@ func put(c *gin.Context){
 		return
 	}
 
-	//bin data baru
+	//bind data baru
 	var updatedData Note
 	if err := c.BindJSON(&updatedData); err != nil{
 		c.JSON(http.StatusBadRequest,gin.H{"error": "Format JSON salah!"})
+		return
+	}
+
+	//Validate
+	if err := validate.Struct(updatedData); err != nil{
+		c.JSON(http.StatusBadRequest,gin.H{"error": err.Error()})
 		return
 	}
 	
@@ -71,6 +85,26 @@ func delete(c *gin.Context){
 	}
 	db.Delete(&note)
 	c.JSON(http.StatusOK,gin.H{"Message": "Note berhasil dihapus!"})
+}
+func login(c *gin.Context){
+	var body struct{
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := c.BindJSON(&body);err != nil{
+		c.JSON(400, gin.H{"error": "Format salah"})
+		return
+	}
+	if body.Username != "admin" || body.Password != "rahasia"{
+		c.JSON(401,gin.H{"error": "Username/password salah"})
+		return
+	}
+	token, _ := GenerateToken(body.Username)
+	c.JSON(200, gin.H{"Token": token})
+}
+func profile(c *gin.Context){
+	username := c.MustGet("username").(string)
+	c.JSON(200, gin.H{"message": "Hai " + username})
 }
 func initDB(){
 	dsn := "host=localhost user=postgres password=fauzi dbname=notes_db port=5432 sslmode=disable"
